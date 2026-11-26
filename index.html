@@ -18,18 +18,85 @@ const map=[],objs=[];function hash(x,y){let n=Math.sin(x*127.1+y*311.7)*43758.54
 for(let y=0;y<MH;y++){map[y]=[];for(let x=0;x<MW;x++){let r=Math.hypot((x-MW/2)/MW,(y-MH/2)/MH);map[y][x]=r<.36?'g':r<.405?'s':'w';}}
 for(let y=3;y<MH-3;y++)for(let x=3;x<MW-3;x++)if(map[y][x]==='g'&&hash(x,y)>.91){let r=hash(x+9,y+3);objs.push({x:x*T+16,y:y*T+16,type:r>.65?'tree':r>.35?'rock':'bush',active:true});}
 objs.push({x:MW*T/2+65,y:MH*T/2+5,type:'home',active:true},{x:MW*T/2-100,y:MH*T/2+30,type:'npc',active:true},{x:MW*T/2+210,y:MH*T/2-180,type:'pond',active:true});
-/* NOVA ISLAND original procedural soundtrack and sound effects */
-let audioCtx=null,musicTimer=null,musicStep=0,musicOn=true,sfxOn=true;
+/* NOVA ISLAND — premium tropical ambient score, synthesized in Web Audio */
+let audioCtx=null,musicTimer=null,musicStep=0,musicOn=true,sfxOn=true,masterGain=null,reverb=null,ambienceNode=null,ambienceGain=null,birdTimer=null;
 try{const pref=JSON.parse(localStorage.getItem('novaAudioPrefs')||'{}');musicOn=pref.music!==false;sfxOn=pref.sfx!==false}catch(e){}
 function persistAudio(){try{localStorage.setItem('novaAudioPrefs',JSON.stringify({music:musicOn,sfx:sfxOn}))}catch(e){}}
-function initAudio(){if(!audioCtx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audioCtx=new AC()}if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});if(musicOn)startMusic()}
-function tone(freq,duration,type='sine',volume=.035,when=0,slide=0){if(!audioCtx)return;const t=audioCtx.currentTime+when,o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),t+duration);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+duration+.04)}
-const islandNotes=[392,494,587,494,440,587,659,587,392,494,587,784,659,587,494,440];
-function musicTick(){if(!audioCtx||!musicOn)return;const n=islandNotes[musicStep%islandNotes.length];tone(n,.42,'sine',.018);tone(n/2,.8,'triangle',.009,.015);if(musicStep%4===0){const chords=[[196,247,294],[220,262,330],[174,220,262],[196,247,294]][Math.floor(musicStep/4)%4];chords.forEach((hz,j)=>tone(hz,1.75,'sine',.006,j*.025))}musicStep++}
-function startMusic(){if(!audioCtx||!musicOn||musicTimer)return;musicTick();musicTimer=setInterval(musicTick,520)}
-function stopMusic(){if(musicTimer){clearInterval(musicTimer);musicTimer=null}}
-function playSfx(kind='click'){if(!sfxOn||!audioCtx)return;const patterns={click:[[660,.055,'sine',.018]],gather:[[520,.08,'triangle',.035],[760,.12,'sine',.025,.07]],fish:[[440,.1,'sine',.025],[660,.13,'sine',.03,.1],[880,.2,'sine',.025,.22]],fail:[[260,.12,'triangle',.025],[190,.18,'triangle',.018,.12]],plant:[[420,.1,'sine',.022],[560,.18,'sine',.025,.1]],harvest:[[523,.12,'sine',.025],[659,.12,'sine',.025,.12],[784,.24,'sine',.03,.24]],craft:[[440,.1,'triangle',.025],[554,.1,'triangle',.025,.1],[659,.18,'triangle',.03,.2]],build:[[330,.14,'triangle',.025],[440,.14,'triangle',.03,.14],[554,.22,'sine',.03,.28]],reward:[[523,.12,'sine',.025],[659,.12,'sine',.03,.12],[784,.12,'sine',.03,.24],[1047,.28,'sine',.035,.36]],talk:[[392,.16,'sine',.018],[494,.2,'sine',.02,.16]]};(patterns[kind]||patterns.click).forEach(p=>tone(p[0],p[1],p[2],p[3],p[4]||0))}
-function openAudioSettings(){show('🎵 Pengaturan Audio','<p class="sub">Musik pulau orisinal dan efek suara dibuat langsung oleh NOVA ISLAND.</p><div class="rowline"><span>🎶 Musik latar</span><button class="action" id="toggleMusic">'+(musicOn?'AKTIF':'MATI')+'</button></div><div class="rowline"><span>🔊 Efek suara</span><button class="action" id="toggleSfx">'+(sfxOn?'AKTIF':'MATI')+'</button></div><p class="sub">Catatan: iPhone memerlukan sentuhan pertama untuk mengaktifkan audio.</p>');document.getElementById('toggleMusic').onclick=()=>{musicOn=!musicOn;persistAudio();if(musicOn){initAudio();startMusic()}else stopMusic();openAudioSettings()};document.getElementById('toggleSfx').onclick=()=>{sfxOn=!sfxOn;persistAudio();if(sfxOn)initAudio();openAudioSettings();if(sfxOn)playSfx('reward')}}
+function initAudio(){
+ if(!audioCtx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audioCtx=new AC();
+  masterGain=audioCtx.createGain();masterGain.gain.value=.72;
+  const comp=audioCtx.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=18;comp.ratio.value=3;comp.attack.value=.012;comp.release.value=.28;
+  masterGain.connect(comp);comp.connect(audioCtx.destination);
+  reverb=audioCtx.createConvolver();const len=Math.floor(audioCtx.sampleRate*2.1),buf=audioCtx.createBuffer(2,len,audioCtx.sampleRate);
+  for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8)}
+  reverb.buffer=buf;const wet=audioCtx.createGain();wet.gain.value=.19;reverb.connect(wet);wet.connect(comp);
+ }
+ if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});
+ if(musicOn)startMusic();
+}
+function voice(freq,duration,opts={}){
+ if(!audioCtx||!masterGain)return;
+ const t=audioCtx.currentTime+(opts.delay||0),o=audioCtx.createOscillator(),g=audioCtx.createGain(),f=audioCtx.createBiquadFilter();
+ o.type=opts.type||'sine';o.frequency.setValueAtTime(freq,t);if(opts.slide)o.frequency.exponentialRampToValueAtTime(Math.max(35,freq+opts.slide),t+duration);
+ if(opts.detune)o.detune.value=opts.detune;
+ f.type='lowpass';f.frequency.value=opts.cutoff||4200;f.Q.value=.55;
+ g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(opts.volume||.018,t+(opts.attack||.04));g.gain.exponentialRampToValueAtTime(.0001,t+duration);
+ o.connect(f);f.connect(g);g.connect(masterGain);if(reverb&&opts.wet!==false)g.connect(reverb);
+ const pan=audioCtx.createStereoPanner?audioCtx.createStereoPanner():null;if(pan){g.disconnect();g.connect(pan);pan.pan.value=opts.pan||0;pan.connect(masterGain);if(reverb&&opts.wet!==false)pan.connect(reverb)}
+ o.start(t);o.stop(t+duration+.06);
+}
+function noiseBurst(duration,volume,cutoff,delay=0){
+ if(!audioCtx)return;const n=Math.floor(audioCtx.sampleRate*duration),b=audioCtx.createBuffer(1,n,audioCtx.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+ const s=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain(),t=audioCtx.currentTime+delay;s.buffer=b;f.type='lowpass';f.frequency.value=cutoff;g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(volume,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+duration);s.connect(f);f.connect(g);g.connect(masterGain);s.start(t);s.stop(t+duration+.02);
+}
+function pluck(freq,delay=0,volume=.027){voice(freq,.62,{type:'triangle',volume,attack:.009,cutoff:5200,delay,pan:Math.sin(musicStep*.7)*.22})}
+const scale=[293.66,329.63,369.99,440,493.88,587.33,659.25,739.99],melody=[0,2,4,2,1,4,5,4,0,2,4,6,5,4,2,1,0,2,5,4,2,1,3,2,0,4,5,7,5,4,2,1];
+const chords=[[146.83,185,220],[110,138.59,164.81],[123.47,146.83,185],[98,123.47,146.83]];
+function padChord(chord,delay=0){
+ chord.forEach((hz,i)=>{voice(hz,2.55,{type:'sine',volume:.008,attack:.65,cutoff:1050,delay,pan:(i-1)*.28});voice(hz*2,2.15,{type:'triangle',volume:.0028,attack:.55,cutoff:1800,delay,pan:(i-1)*.2})});
+}
+function musicTick(){
+ if(!audioCtx||!musicOn)return;const step=musicStep%32,bar=Math.floor(step/8),ch=chords[Math.floor(step/8)%4];
+ if(step%8===0){padChord(ch);voice(ch[0]/2,1.35,{type:'sine',volume:.022,attack:.09,cutoff:500});}
+ if(step%2===0){const idx=melody[step],note=scale[idx];pluck(note,0,.021);if(step%8===4)pluck(scale[(idx+2)%8]*2,.035,.009)}
+ if(step%4===0)voice(ch[0]/2,.48,{type:'triangle',volume:.013,attack:.025,cutoff:360});
+ if(step%8===2||step%8===6)noiseBurst(.055,.009,2400);
+ if(step%8===0)voice(78,.16,{type:'sine',volume:.014,attack:.012,cutoff:180,slide:-34});
+ musicStep++;
+}
+function startMusic(){
+ if(!audioCtx||!musicOn||musicTimer)return;
+ musicTick();musicTimer=setInterval(musicTick,300);
+ if(!ambienceNode){
+  const n=Math.floor(audioCtx.sampleRate*3),b=audioCtx.createBuffer(1,n,audioCtx.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+  ambienceNode=audioCtx.createBufferSource();ambienceNode.buffer=b;ambienceNode.loop=true;
+  const f=audioCtx.createBiquadFilter();f.type='lowpass';f.frequency.value=430;const g=audioCtx.createGain();g.gain.value=.009;
+  ambienceNode.connect(f);f.connect(g);g.connect(masterGain);ambienceNode.start();ambienceGain=g;
+ }
+ if(!birdTimer)birdTimer=setInterval(()=>{if(!musicOn||!audioCtx)return;const base=[1174.66,1396.91,1567.98,1760][Math.floor(Math.random()*4)];voice(base,.12,{type:'sine',volume:.006,attack:.018,slide:base*.12,delay:.02,pan:Math.random()*.9-.45});voice(base*1.25,.16,{type:'sine',volume:.004,attack:.025,slide:-base*.08,delay:.19,pan:Math.random()*.9-.45})},11000+Math.random()*4000);
+}
+function stopMusic(){if(musicTimer){clearInterval(musicTimer);musicTimer=null}if(birdTimer){clearInterval(birdTimer);birdTimer=null}if(ambienceNode){try{ambienceNode.stop()}catch(e){}ambienceNode=null;ambienceGain=null}}
+function playSfx(kind='click'){
+ if(!sfxOn||!audioCtx)return;
+ const seq={
+ click:()=>voice(740,.07,{type:'sine',volume:.018,attack:.006,cutoff:3000}),
+ gather:()=>{voice(310,.12,{type:'triangle',volume:.035,slide:180,cutoff:1800});voice(620,.16,{type:'sine',volume:.018,delay:.065})},
+ fish:()=>{voice(420,.18,{type:'sine',volume:.025,slide:180});voice(680,.24,{type:'triangle',volume:.02,delay:.12});noiseBurst(.12,.018,3200,.04)},
+ fail:()=>{voice(250,.22,{type:'triangle',volume:.025,slide:-65});voice(180,.25,{type:'sine',volume:.012,delay:.1})},
+ plant:()=>{noiseBurst(.09,.012,1100);voice(390,.2,{type:'sine',volume:.022,delay:.06});voice(520,.22,{type:'sine',volume:.018,delay:.17})},
+ harvest:()=>[523.25,659.25,783.99,1046.5].forEach((n,i)=>voice(n,.38,{type:'sine',volume:.023,delay:i*.085,attack:.015,pan:(i-1.5)*.16})),
+ craft:()=>[392,493.88,587.33,783.99].forEach((n,i)=>voice(n,.25,{type:'triangle',volume:.02,delay:i*.07,cutoff:3000})),
+ build:()=>{[293.66,369.99,440,587.33].forEach((n,i)=>voice(n,.48,{type:'triangle',volume:.022,delay:i*.12,attack:.025}));noiseBurst(.2,.02,500,.3)},
+ reward:()=>[523.25,659.25,783.99,1046.5,1318.5].forEach((n,i)=>voice(n,.42,{type:'sine',volume:.025,delay:i*.09,attack:.012,pan:(i-2)*.12})),
+ talk:()=>{voice(392,.18,{type:'sine',volume:.014});voice(493.88,.2,{type:'sine',volume:.014,delay:.16})}
+ };
+ (seq[kind]||seq.click)();
+}
+function openAudioSettings(){
+ show('🎵 Pengaturan Audio','<p class="sub">Soundtrack tropis berlapis, ambience laut, kicau burung, dan efek suara orisinal NOVA ISLAND.</p><div class="rowline"><span>🎶 Musik latar sinematik</span><button class="action" id="toggleMusic">'+(musicOn?'AKTIF':'MATI')+'</button></div><div class="rowline"><span>🌊 Ambience & alam</span><span>MENYATU DENGAN MUSIK</span></div><div class="rowline"><span>🔊 Efek suara</span><button class="action" id="toggleSfx">'+(sfxOn?'AKTIF':'MATI')+'</button></div><p class="sub">Audio mulai setelah sentuhan pertama. Pengaturan tersimpan otomatis di perangkat ini.</p>');
+ document.getElementById('toggleMusic').onclick=()=>{musicOn=!musicOn;persistAudio();if(musicOn){initAudio();startMusic()}else stopMusic();openAudioSettings()};
+ document.getElementById('toggleSfx').onclick=()=>{sfxOn=!sfxOn;persistAudio();if(sfxOn)initAudio();openAudioSettings();if(sfxOn)playSfx('reward')};
+}
 document.getElementById('audioBtn').addEventListener('click',()=>{initAudio();openAudioSettings()});
 document.addEventListener('pointerdown',()=>{initAudio()},{once:true,capture:true});
 document.addEventListener('keydown',()=>{initAudio()},{once:true,capture:true});
