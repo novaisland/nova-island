@@ -49,7 +49,7 @@ let stick=document.getElementById('stick'),nub=document.getElementById('nub');fu
 </script>
 <script>
 
-window.__NOVA={getState:()=>S,getObjects:()=>objs,restore:(v)=>{if(!v||!v.state)return;Object.assign(S,v.state);if(Array.isArray(v.objects))objs.splice(0,objs.length,...v.objects);S.inv.bait=S.inv.bait||0;for(const farm of S.farm||[]){if(!Array.isArray(farm.cells)){farm.cells=Array.from({length:9},(_,i)=>i===0?{planted:!!farm.planted,grown:!!farm.grown,plantedAt:farm.plantedAt||0}:{planted:false,grown:false,plantedAt:0});delete farm.planted;delete farm.grown;delete farm.plantedAt;}}save(false);sync();toast('Cloud save berhasil dimuat.')}};
+window.__NOVA={getState:()=>S,getObjects:()=>objs,show,close,restore:(v)=>{if(!v||!v.state)return;Object.assign(S,v.state);if(Array.isArray(v.objects))objs.splice(0,objs.length,...v.objects);S.inv.bait=S.inv.bait||0;for(const farm of S.farm||[]){if(!Array.isArray(farm.cells)){farm.cells=Array.from({length:9},(_,i)=>i===0?{planted:!!farm.planted,grown:!!farm.grown,plantedAt:farm.plantedAt||0}:{planted:false,grown:false,plantedAt:0});delete farm.planted;delete farm.grown;delete farm.plantedAt;}}save(false);sync();toast('Cloud save berhasil dimuat.')}};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
