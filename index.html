@@ -53,28 +53,28 @@ window.__NOVA={getState:()=>S,getObjects:()=>objs,show,close,restore:(v)=>{if(!v
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// NOVA ISLAND CLOUD AUTH — browser uses publishable key only; RLS protects player rows.
+// NOVA ISLAND CLOUD AUTH — resilient account UI and cloud save.
 (()=>{'use strict';
 const SUPABASE_URL="https://dushofjodmiuateaoyla.supabase.co";
 const SUPABASE_KEY="sb_publishable_Stk-pos1FOOy_r0HC3K4Uw_nFT4U2To";
-const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-let session=null,activeUserId=null,restoring=false,saveTimer=null;
-const status=()=>session?'Terhubung: '+(session.user.email||'Pemain'):'Belum login';
-function queueSave(){if(!session||restoring)return;clearTimeout(saveTimer);saveTimer=setTimeout(pushSave,1800)}
-async function pushSave(){if(!session||restoring)return;const s=window.__NOVA;try{const {error}=await client.from('player_saves').upsert({user_id:session.user.id,save_version:1,save_data:{version:2,state:s.getState(),objects:s.getObjects()}},{onConflict:'user_id'});if(error)throw error;const el=document.getElementById('cloudStatus');if(el)el.textContent='Cloud save aktif · tersimpan';}catch(e){console.warn('NOVA cloud save:',e.message);const el=document.getElementById('cloudStatus');if(el)el.textContent='Cloud save gagal: '+e.message}}
+let client=null,session=null,activeUserId=null,restoring=false,saveTimer=null;
+function queueSave(){if(!client||!session||restoring)return;clearTimeout(saveTimer);saveTimer=setTimeout(pushSave,1800)}
+async function pushSave(){if(!client||!session||restoring)return;const s=window.__NOVA;try{const {error}=await client.from('player_saves').upsert({user_id:session.user.id,save_version:1,save_data:{version:2,state:s.getState(),objects:s.getObjects()}},{onConflict:'user_id'});if(error)throw error;const el=document.getElementById('cloudStatus');if(el)el.textContent='Cloud save aktif · tersimpan'}catch(e){console.warn('NOVA cloud save:',e);const el=document.getElementById('cloudStatus');if(el)el.textContent='Cloud save gagal: '+(e.message||'Periksa koneksi dan konfigurasi database')}}
 async function loadCloud(user){const {data,error}=await client.from('player_saves').select('save_data').eq('user_id',user.id).maybeSingle();if(error)throw error;const cloud=data?.save_data;const local=localStorage.getItem('novaIslandSave');if(cloud&&cloud.state){if(local){const useCloud=confirm('Ditemukan save di cloud dan perangkat ini. Tekan OK untuk memakai save CLOUD, atau Batal untuk mempertahankan save PERANGKAT ini dan mengunggahnya.');if(useCloud){restoring=true;window.__NOVA.restore(cloud);restoring=false}else queueSave()}else{restoring=true;window.__NOVA.restore(cloud);restoring=false}}else queueSave()}
 async function acceptSession(next){session=next;if(!next){activeUserId=null;return}if(activeUserId===next.user.id)return;activeUserId=next.user.id;try{await loadCloud(next.user)}catch(e){console.warn(e);alert('Login berhasil, tetapi cloud save belum bisa dibaca: '+e.message)}}
-function renderAccount(){const user=session?.user;const body=user?'<p class="sub">Login sebagai <b>'+user.email+'</b></p><p id="cloudStatus" class="sub">Memeriksa cloud save...</p><button class="action" id="syncNow">☁️ Simpan sekarang</button><button class="action gold" id="signOut">Keluar</button>':'<p class="sub">Buat akun atau masuk untuk menyimpan progress NOVA ISLAND di cloud.</p><form id="novaAuthForm"><label class="sub">Email</label><input id="novaEmail" type="email" required autocomplete="email" placeholder="email@contoh.com" style="width:100%;padding:11px;margin:5px 0 10px;border:2px solid #d7c8a5;border-radius:8px"><label class="sub">Password (minimal 6 karakter)</label><input id="novaPassword" type="password" required minlength="6" autocomplete="current-password" placeholder="Password akun" style="width:100%;padding:11px;margin:5px 0 10px;border:2px solid #d7c8a5;border-radius:8px"><button class="action" type="submit">Masuk</button><button class="action gold" type="button" id="signUp">Daftar akun</button></form><p id="authMessage" class="sub">Gunakan email milikmu. Password hanya dikirim ke Supabase, tidak ke NOVA ISLAND.</p>';
-window.__NOVA.show('👤 Akun NOVA ISLAND',body);
-if(user){document.getElementById('syncNow').onclick=async()=>{await pushSave();};document.getElementById('signOut').onclick=async()=>{const {error}=await client.auth.signOut();if(error)alert(error.message);};return}
-const form=document.getElementById('novaAuthForm'),msg=document.getElementById('authMessage');
-const creds=()=>({email:document.getElementById('novaEmail').value.trim(),password:document.getElementById('novaPassword').value});
-form.onsubmit=async e=>{e.preventDefault();msg.textContent='Sedang masuk...';const {error}=await client.auth.signInWithPassword(creds());msg.textContent=error?error.message:'Login berhasil.'};
-document.getElementById('signUp').onclick=async()=>{const v=creds();if(!v.email||v.password.length<6){msg.textContent='Isi email dan password minimal 6 karakter.';return}msg.textContent='Mendaftarkan akun...';const {data,error}=await client.auth.signUp({email:v.email,password:v.password});msg.textContent=error?error.message:(data.session?'Akun dibuat dan berhasil login.':'Akun dibuat. Periksa email untuk konfirmasi, lalu masuk.');};
+function renderAccount(){
+ const user=session?.user;
+ const unavailable=!client;
+ const body=unavailable?'<p class="sub">Menu akun berhasil dibuka, tetapi pustaka koneksi Supabase belum termuat. Periksa koneksi internet lalu muat ulang game.</p>':
+ user?'<p class="sub">Login sebagai <b>'+user.email+'</b></p><p id="cloudStatus" class="sub">Memeriksa cloud save...</p><button class="action" id="syncNow">☁️ Simpan sekarang</button><button class="action gold" id="signOut">Keluar</button>':
+ '<p class="sub">Buat akun atau masuk untuk menyimpan progress NOVA ISLAND di cloud.</p><form id="novaAuthForm"><label class="sub">Email</label><input id="novaEmail" type="email" required autocomplete="email" placeholder="email@contoh.com" style="width:100%;padding:11px;margin:5px 0 10px;border:2px solid #d7c8a5;border-radius:8px"><label class="sub">Password (minimal 6 karakter)</label><input id="novaPassword" type="password" required minlength="6" autocomplete="current-password" placeholder="Password akun" style="width:100%;padding:11px;margin:5px 0 10px;border:2px solid #d7c8a5;border-radius:8px"><button class="action" type="submit">Masuk</button><button class="action gold" type="button" id="signUp">Daftar akun</button></form><p id="authMessage" class="sub">Gunakan email milikmu. Password diproses oleh Supabase.</p>';
+ window.__NOVA.show('👤 Akun NOVA ISLAND',body);
+ if(unavailable||!user){if(!unavailable){const form=document.getElementById('novaAuthForm'),msg=document.getElementById('authMessage');const creds=()=>({email:document.getElementById('novaEmail').value.trim(),password:document.getElementById('novaPassword').value});form.onsubmit=async e=>{e.preventDefault();msg.textContent='Sedang masuk...';const {error}=await client.auth.signInWithPassword(creds());msg.textContent=error?error.message:'Login berhasil.'};document.getElementById('signUp').onclick=async()=>{const v=creds();if(!v.email||v.password.length<6){msg.textContent='Isi email dan password minimal 6 karakter.';return}msg.textContent='Mendaftarkan akun...';const {data,error}=await client.auth.signUp({email:v.email,password:v.password});msg.textContent=error?error.message:(data.session?'Akun dibuat dan berhasil login.':'Akun dibuat. Periksa email untuk konfirmasi, lalu masuk.')}}return}
+ document.getElementById('syncNow').onclick=pushSave;document.getElementById('signOut').onclick=async()=>{const {error}=await client.auth.signOut();if(error)alert(error.message)}
 }
-document.getElementById('accountBtn').onclick=renderAccount;
-client.auth.onAuthStateChange((_event,next)=>{setTimeout(()=>acceptSession(next),0)});
-client.auth.getSession().then(({data,error})=>{if(error)console.warn(error);acceptSession(data?.session||null)});
+const accountButton=document.getElementById('accountBtn');
+if(accountButton)accountButton.addEventListener('click',renderAccount);
 window.NOVACloud={queueSave,pushSave,showAccount:renderAccount};
+try{if(window.supabase&&window.supabase.createClient){client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);client.auth.onAuthStateChange((_event,next)=>{setTimeout(()=>acceptSession(next),0)});client.auth.getSession().then(({data,error})=>{if(error)console.warn(error);acceptSession(data?.session||null)}).catch(e=>console.warn('NOVA auth init:',e))}else console.warn('Supabase JS library did not load; account menu remains available.')}catch(e){console.error('NOVA Supabase initialization failed:',e)}
 })();
 </script></body></html>
