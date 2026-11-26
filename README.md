@@ -20,4 +20,4 @@ Open `index.html` in a browser. To publish with GitHub Pages: Settings → Pages
 Move: WASD / arrow keys / joystick. Interact: E / AKSI. Gather: Space / AMBIL. Menus: bottom navigation.
 
 ## Scope
-This is a playable offline alpha, not yet the complete online product. Accounts, multiplayer, cloud saves, server-authoritative economy, payments, advertising and blockchain features are not implemented. Save data stays in the current browser/device.
+The current playable build remains an offline alpha. Online MMORPG systems are being developed in phases. The first Supabase database schema for player profiles and private cloud saves is in supabase/schema.sql; setup and security notes are in docs/ONLINE_ARCHITECTURE.md. Accounts are not connected to the game yet, and live multiplayer, server-authoritative economy, trading, payments and blockchain features are not implemented. Existing saves remain local until a tested migration is added.
