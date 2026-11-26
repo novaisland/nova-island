@@ -45,11 +45,9 @@ function save(showMsg){try{localStorage.setItem('novaIslandSave',JSON.stringify(
 document.getElementById('saveBtn').onclick=()=>save(true);document.getElementById('closeModal').onclick=close;document.getElementById('modalwrap').onclick=e=>{if(e.target.id==='modalwrap')close()};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>open(b.dataset.panel));document.getElementById('gather').onclick=gather;document.getElementById('interact').onclick=interact;document.getElementById('bag').onclick=()=>open('inventory');document.getElementById('mapquick').onclick=()=>open('map');
 addEventListener('keydown',e=>{keys[e.key]=true;if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();if(e.key==='e'||e.key==='E')interact();if(e.key===' ')gather();if(e.key==='Escape')close()});addEventListener('keyup',e=>keys[e.key]=false);
 let stick=document.getElementById('stick'),nub=document.getElementById('nub');function setJoy(e){let r=stick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,l=Math.hypot(dx,dy),max=35;if(l>max){dx=dx/l*max;dy=dy/l*max}joy={x:dx/max,y:dy/max};nub.style.transform='translate('+dx+'px,'+dy+'px)'}function endJoy(){stickDown=false;joy={x:0,y:0};nub.style.transform='translate(0,0)'}stick.addEventListener('pointerdown',e=>{stickDown=true;stick.setPointerCapture(e.pointerId);setJoy(e)});stick.addEventListener('pointermove',e=>{if(stickDown)setJoy(e)});stick.addEventListener('pointerup',endJoy);stick.addEventListener('pointercancel',endJoy);addEventListener('beforeunload',()=>save(false));
-})();
-</script>
-<script>
-
+// Expose game state bridge from inside the game scope.
 window.__NOVA={getState:()=>S,getObjects:()=>objs,show,close,restore:(v)=>{if(!v||!v.state)return;Object.assign(S,v.state);if(Array.isArray(v.objects))objs.splice(0,objs.length,...v.objects);S.inv.bait=S.inv.bait||0;for(const farm of S.farm||[]){if(!Array.isArray(farm.cells)){farm.cells=Array.from({length:9},(_,i)=>i===0?{planted:!!farm.planted,grown:!!farm.grown,plantedAt:farm.plantedAt||0}:{planted:false,grown:false,plantedAt:0});delete farm.planted;delete farm.grown;delete farm.plantedAt;}}save(false);sync();toast('Cloud save berhasil dimuat.')}};
+})();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
