@@ -1,2 +1,3 @@
-# nova-island
-Pixel Art Adventure Game — Explore, Collect, Build &amp; Own.
+# NOVA ISLAND
+
+A tropical pixel-art island adventure and life-simulation game.
